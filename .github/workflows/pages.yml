@@ -3,6 +3,8 @@ name: Deploy React site to GitHub Pages
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "data/processed/**"
   workflow_dispatch:
 
 permissions:

@@ -9,6 +9,11 @@ GitHub Pages hosts the static React frontend only. The prediction form needs
 the FastAPI service in `api.py` to be deployed separately, with its public URL
 provided as `VITE_API_BASE_URL` when the frontend is built.
 
+The included `render.yaml` deploys the API on Render's free web-service plan.
+The scheduled `Update NFL data` GitHub Action rebuilds upcoming-game features
+daily and commits them to `main`; Render then redeploys the new data
+automatically.
+
 ## Project layout
 
 - `data/raw/`: downloaded source data (not committed)

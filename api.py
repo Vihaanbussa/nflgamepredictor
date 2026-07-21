@@ -17,10 +17,19 @@ FEATURES_PATH = PROJECT_ROOT / "data" / "processed" / "upcoming_features_2026.pa
 app = FastAPI(title="NFL Custom Line Predictor API")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://vihaanbussa.github.io",
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.get("/health")
+def health() -> dict:
+    return {"status": "ok"}
 
 
 class PredictionRequest(BaseModel):

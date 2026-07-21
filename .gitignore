@@ -12,5 +12,7 @@ data/raw/*
 !data/raw/.gitkeep
 data/processed/*
 !data/processed/.gitkeep
+!data/processed/upcoming_features_2026.parquet
 models/*
 !models/.gitkeep
+!models/*.joblib

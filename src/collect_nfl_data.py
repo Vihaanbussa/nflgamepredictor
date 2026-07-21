@@ -75,7 +75,7 @@ def download_team_stats() -> None:
             seasons=HISTORICAL_SEASONS,
             summary_level="week",
         )
-    except ConnectionError:
+    except (ConnectionError, ValueError):
         print("2026 team stats are not published yet; using data through 2025.")
         team_stats = nfl.load_team_stats(
             seasons=HISTORICAL_SEASONS[:-1],
@@ -97,7 +97,7 @@ def download_player_stats() -> None:
             seasons=HISTORICAL_SEASONS,
             summary_level="week",
         )
-    except ConnectionError:
+    except (ConnectionError, ValueError):
         print("2026 player stats are not published yet; using data through 2025.")
         player_stats = nfl.load_player_stats(
             seasons=HISTORICAL_SEASONS[:-1],
@@ -121,7 +121,7 @@ def download_play_by_play() -> None:
             season_frames.append(
                 nfl.load_pbp(seasons=[season]).select(PLAY_BY_PLAY_COLUMNS)
             )
-        except ConnectionError:
+        except (ConnectionError, ValueError):
             if season != TARGET_SEASON:
                 raise
             print("2026 play-by-play is not published yet; skipping it for now.")
@@ -138,7 +138,7 @@ def download_injuries() -> None:
         injuries = nfl.load_injuries(
             seasons=HISTORICAL_SEASONS,
         )
-    except ConnectionError:
+    except (ConnectionError, ValueError):
         print("2026 injuries are not published yet; using data through 2025.")
         injuries = nfl.load_injuries(
             seasons=HISTORICAL_SEASONS[:-1],

@@ -1,32 +1,118 @@
 # NFL Game Predictor
 
-A machine-learning project that predicts upcoming NFL games using historical
-team and player statistics, injuries, and pregame news sentiment.
+An end-to-end machine-learning project that predicts NFL game outcomes and
+evaluates custom moneyline, point-spread, and over/under bets. The project
+combines historical team and player performance, play-by-play efficiency,
+injuries, expected quarterbacks, current rosters, and drafted rookies.
 
-React site: <https://vihaanbussa.github.io/nflgamepredictor/>
+- **Live website:** <https://vihaanbussa.github.io/nflgamepredictor/>
+- **API health check:** <https://nflgamepredictor-api.onrender.com/health>
+- **Interactive API documentation:** <https://nflgamepredictor-api.onrender.com/docs>
 
-GitHub Pages hosts the static React frontend only. The prediction form needs
-the FastAPI service in `api.py` to be deployed separately, with its public URL
-provided as `VITE_API_BASE_URL` when the frontend is built.
+The application is built as a portfolio project and produces experimental
+model estimates, not guaranteed outcomes or financial advice.
 
-The included `render.yaml` deploys the API on Render's free web-service plan.
-The scheduled `Update NFL data` GitHub Action rebuilds upcoming-game features
-daily and commits them to `main`; Render then redeploys the new data
-automatically.
+## How it works
 
-## Project layout
+```mermaid
+flowchart LR
+    A["nflverse data"] --> B["Polars feature pipeline"]
+    B --> C["scikit-learn models"]
+    C --> D["FastAPI on Render"]
+    D --> E["React on GitHub Pages"]
+    F["Daily GitHub Action"] --> A
+    F --> B
+    F --> D
+```
 
-- `data/raw/`: downloaded source data (not committed)
-- `data/processed/`: model-ready feature tables (not committed)
-- `models/`: trained model artifacts (not committed)
-- `notebooks/`: exploration and experiments
-- `src/`: data collection, feature engineering, training, and prediction code
-- `tests/`: automated tests
-- `frontend/`: React custom-lines website
-- `api.py`: FastAPI prediction and live-refresh API
-- `app.py`: original Streamlit dashboard
+1. `src/collect_nfl_data.py` downloads schedules, weekly team and player
+   statistics, play-by-play, injuries, depth charts, rosters, and draft picks
+   through the `nflreadpy` package and nflverse datasets.
+2. `src/build_features.py` creates leakage-safe features. Every historical
+   row uses only information that would have been available before that game.
+3. Rolling team form, quarterback form, EPA, success rate, pace, explosive
+   plays, red-zone performance, turnovers, injuries, and matchup differences
+   are converted into model-ready columns.
+4. `src/build_2026_roster.py` and `src/build_expected_starters.py` incorporate
+   the current roster, drafted rookies, and expected starting quarterbacks.
+5. `src/train.py` compares classification models using chronological
+   walk-forward validation. `src/train_score_models.py` separately models
+   home score, away score, and the residual from the sportsbook total.
+6. The saved models estimate win, cover, and over probabilities. The API also
+   compares each probability with the user's American odds to calculate the
+   expected return for both sides of a market.
+7. The React website lets a user search the upcoming schedule, edit the
+   sportsbook lines, and request a prediction from the FastAPI backend.
 
-## Setup
+## Prediction output
+
+For a selected game, the website returns:
+
+- projected home score, away score, and combined total;
+- predicted straight-up winner and win probability;
+- predicted point-spread side and cover probability;
+- predicted over/under side and probability;
+- the side with the highest expected value at the entered American odds.
+
+The sportsbook line is an input, not a model prediction. Lines move over time,
+so users should enter values from the same sportsbook at roughly the same
+time. Expected starters can also change because of injuries or team decisions.
+
+## Tools and technologies
+
+| Area | Tools | Purpose |
+|---|---|---|
+| Data source | nflverse, `nflreadpy` | NFL schedules, statistics, play-by-play, injuries, rosters, depth charts, and draft picks |
+| Data processing | Python, Polars, pandas, NumPy | Cleaning, joining, rolling statistics, and feature engineering |
+| Machine learning | scikit-learn, Joblib | Classification, score regression, validation, and saved model artifacts |
+| Exploration | Jupyter Notebook, Matplotlib, Seaborn | Data inspection and model experimentation |
+| Backend | FastAPI, Uvicorn, Pydantic | Game endpoints, request validation, and model inference |
+| Frontend | React, Vite, HTML, CSS | Searchable game form and prediction results |
+| Automation | GitHub Actions | Daily data download and upcoming-feature rebuild |
+| Hosting | GitHub Pages, Render | Static React hosting and the Python API |
+| Earlier prototype | Streamlit | Initial local prediction dashboard |
+
+## Model design
+
+The historical training table covers seasons beginning in 2018. Validation is
+chronological rather than randomly shuffled:
+
+- 2022, 2023, and 2024 are used as walk-forward validation seasons;
+- candidate models compare full-history and recent-season training windows;
+- 2025 is retained as the final chronological test season;
+- model candidates include regularized linear/logistic approaches and
+  histogram gradient boosting;
+- home and away score residuals are used to estimate a score distribution for
+  moneyline and total probabilities.
+
+This structure helps reduce look-ahead bias and better represents predicting a
+future week from earlier weeks.
+
+## Automatic data updates
+
+The deployed application uses `.github/workflows/update-nfl-data.yml` instead
+of writing refreshed files on Render's temporary filesystem.
+
+Every day at approximately 10:17 UTC, GitHub Actions:
+
+1. downloads the newest available NFL datasets;
+2. rebuilds rosters, expected starters, historical features, and upcoming-game
+   features;
+3. commits `data/processed/upcoming_features_2026.parquet` when it changes;
+4. triggers Render's automatic redeployment from the updated `main` branch.
+
+Before the 2026 weekly feeds are published, the collector automatically falls
+back to completed data through 2025. Once 2026 weekly files become available,
+the same workflow begins including them without a configuration change.
+
+The website may display `Data status: disabled`. This only means the
+in-process Render refresher is disabled with `NFL_AUTO_REFRESH=0`; scheduled
+GitHub updates remain enabled. Free Render services sleep after inactivity, so
+the first request can take longer while the API wakes up.
+
+## Run locally
+
+### 1. Install Python packages
 
 ```bash
 python -m venv .venv
@@ -34,43 +120,44 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Run the app with:
+On Windows PowerShell, activate the environment with:
 
-```bash
-streamlit run app.py
+```powershell
+.venv\Scripts\Activate.ps1
 ```
 
-## React custom-lines website
+### 2. Install frontend packages
 
-The easiest way to start both React and the prediction API is:
+```bash
+cd frontend
+npm install
+cd ..
+```
+
+### 3. Start the API
 
 ```bash
 source .venv/bin/activate
-python start_react_app.py
+uvicorn api:app --host 127.0.0.1 --port 8000
 ```
 
-Then open `http://127.0.0.1:5173`. Press Control+C in the terminal to stop both
-servers.
-
-If you prefer separate terminals, start the API first:
+### 4. Start React in a second terminal
 
 ```bash
-uvicorn api:app --reload --port 8000
+cd frontend
+npm run dev -- --host 127.0.0.1
 ```
 
-Then run `cd frontend && npm run dev` in the second terminal.
+Open <http://127.0.0.1:5173>. The `start_react_app.py` launcher can also start
+both processes from one terminal.
 
-By default the API checks for new 2026 data every
-12 hours. It downloads the current schedule, completed weekly statistics,
-play-by-play, injuries, depth charts, and rosters, then rebuilds features for
-only the games that remain unplayed. Set `NFL_AUTO_REFRESH=0` before starting
-the API to work entirely from cached local data.
+## Rebuild data and models
 
-## Generate 2026 predictions
-
-After refreshing the source data, build and train all three market models:
+Run the complete pipeline from the project root with the virtual environment
+active:
 
 ```bash
+python -m src.collect_nfl_data
 python -m src.build_2026_roster
 python -m src.build_expected_starters
 python -m src.build_features
@@ -80,25 +167,44 @@ python -m src.build_upcoming_features
 python -m src.predict
 ```
 
-The output at `data/processed/predictions_2026.csv` includes straight-up
-winner probabilities, moneyline odds and no-vig comparison, against-the-spread
-picks, and over/under picks. Spread and total predictions remain blank when a
-book line has not been posted.
+The final batch predictions are written under `data/processed/`. The deployed
+custom-line API loads `upcoming_features_2026.parquet` and the Joblib artifacts
+under `models/`.
 
-## Suggested implementation order
+## API endpoints
 
-1. Download schedules and weekly statistics in `src/collect_nfl_data.py`.
-2. Create leakage-safe rolling features in `src/build_features.py`, including
-   play-by-play EPA and success rate, early-down efficiency, neutral pass rate,
-   red-zone touchdowns, scoring drives, pace, explosive plays, scoring form,
-   and offense-versus-defense matchup features.
-3. Train several regularized linear and gradient-boosted candidates in
-   `src/train.py`. The script uses 2022, 2023, and 2024 as chronological
-   walk-forward validation seasons, compares all-history and recent-era
-   training windows, then evaluates the selected model once on 2025.
-4. Train separate home-score, away-score, and total-residual models in
-   `src/train_score_models.py`. Their estimated score distributions produce
-   the moneyline and over/under probabilities used by the dashboard.
-5. Add news collection and sentiment in `src/collect_news.py`.
-6. Generate upcoming-game predictions in `src/predict.py`.
-7. Display custom-line predictions in the React site under `frontend/`.
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/health` | Lightweight Render health check |
+| `GET` | `/api/games` | Remaining schedule, expected quarterbacks, and available market lines |
+| `POST` | `/api/predict` | Prediction for one game and a custom set of lines |
+| `GET` | `/api/refresh-status` | Status of the optional in-process refresher |
+| `POST` | `/api/refresh` | Starts a background data refresh in the API process |
+
+## Project structure
+
+```text
+.
+├── .github/workflows/       # Pages deployment and daily data update
+├── data/raw/                # Downloaded source data (ignored by Git)
+├── data/processed/          # Engineered datasets and deployed game features
+├── frontend/                # React and Vite website
+├── models/                  # Trained Joblib model artifacts
+├── notebooks/               # Exploration notebook
+├── src/                     # Collection, features, training, and prediction
+├── api.py                   # FastAPI application
+├── app.py                   # Original Streamlit dashboard
+├── render.yaml              # Render backend configuration
+└── requirements*.txt        # Development and API dependencies
+```
+
+## Current limitations and future work
+
+- Predictions depend on the quality and availability of upstream data.
+- Expected starting quarterbacks are projections until teams confirm them.
+- Sportsbook prices change, and different books can offer different lines.
+- The free Render service can have a cold-start delay.
+- News sentiment is planned but is not currently part of the live prediction
+  pipeline; `src/collect_news.py` is only a placeholder.
+- Future seasons will require replacing the hard-coded 2026 target season or
+  refactoring it into configuration.

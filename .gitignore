@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.py[cod]
+.DS_Store
+.env
+.streamlit/secrets.toml
+frontend/node_modules/
+frontend/dist/
+
+# Generated data and trained models
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+models/*
+!models/.gitkeep
